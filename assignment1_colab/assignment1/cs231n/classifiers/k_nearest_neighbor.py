@@ -75,7 +75,14 @@ class KNearestNeighbor(object):
                 # training point, and store the result in dists[i, j]. You should   #
                 # not use a loop over dimension, nor use np.linalg.norm().          #
                 #####################################################################
-                pass
+                test_sample_vec = X[i, :]
+                train_sample_vec = self.X_train[j, :]
+                dist = np.sqrt(
+                    np.sum(
+                        (test_sample_vec - train_sample_vec)**2
+                    )
+                )
+                dists[i][j] = dist
         return dists
 
     def compute_distances_one_loop(self, X):
@@ -95,7 +102,15 @@ class KNearestNeighbor(object):
             # points, and store the result in dists[i, :].                        #
             # Do not use np.linalg.norm().                                        #
             #######################################################################
-            pass
+            test_sample_vec = X[i, :]  # (D,)
+            # (D,) and (num_train, D)
+            # broadcasted to
+            # (num_train, D) and (num_train, D)
+            dist_row = np.sqrt(np.sum(
+                (test_sample_vec - self.X_train)**2, axis=1
+            ))
+            # (num_train,)
+            dists[i, :] = dist_row
         return dists
 
     def compute_distances_no_loops(self, X):
@@ -121,7 +136,13 @@ class KNearestNeighbor(object):
         # HINT: Try to formulate the l2 distance using matrix multiplication    #
         #       and two broadcast sums.                                         #
         #########################################################################
-
+        t1 = np.sum(X**2, axis=1)  # (num_test,)
+        t2 = np.sum(self.X_train**2, axis=1)  # (num_train,)
+        cross_term = X @ self.X_train.T  # (num_test, num_train)
+        dists = t1.reshape(num_test, 1) + t2 - 2 * cross_term
+        dists = np.sqrt(
+            np.maximum(dists, 0)  # floating point arithmetic can lead to small -ve values
+        )
         return dists
 
     def predict_labels(self, dists, k=1):
@@ -150,7 +171,10 @@ class KNearestNeighbor(object):
             # neighbors. Store these labels in closest_y.                           #
             # Hint: Look up the function numpy.argsort.                             #
             #########################################################################
-
+            dists_i = dists[i, :]
+            args = np.argsort(dists_i)
+            nearest_k_idxs = args[:k]
+            nearest_k_labels = self.y_train[nearest_k_idxs]
 
             #########################################################################
             # TODO:                                                                 #
@@ -159,6 +183,16 @@ class KNearestNeighbor(object):
             # Store this label in y_pred[i]. Break ties by choosing the smaller     #
             # label.                                                                #
             #########################################################################
+            cnts = {}
+            for label in nearest_k_labels:
+                cnts[label] = cnts.get(label, 0) + 1
 
+            max_cnt = max(cnts.values())
+            candidates = [
+                label for label, cnt in cnts.items()
+                if cnt == max_cnt
+            ]
+            pred = np.min(candidates)
+            y_pred[i] = pred
 
         return y_pred
